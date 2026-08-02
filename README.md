@@ -69,4 +69,5 @@ For reviewers, the same commands work in any normal desktop session with a local
 
 - No browser automation framework is used.
 - The workflow relies on screenshots, OCR, and GUI automation.
+- Screen capture uses a direct Python backend, not external screenshot utilities.
 - The output format matches the assessment requirement.

@@ -22,6 +22,23 @@ def _pyautogui():
     return pyautogui
 
 
+def _capture_screen() -> Image.Image:
+    try:
+        import mss
+    except ImportError as exc:  # pragma: no cover - runtime dependency guard
+        raise RuntimeError("mss is required for screenshots. Install project dependencies first.") from exc
+
+    try:
+        with mss.mss() as capture:
+            monitor = capture.monitors[0]
+            pixels = capture.grab(monitor)
+            return Image.frombytes("RGB", pixels.size, pixels.rgb)
+    except Exception as exc:  # pragma: no cover - depends on local display/session
+        raise RuntimeError(
+            "Unable to capture the screen. Run this project from a visible desktop session with a local display."
+        ) from exc
+
+
 @dataclass(slots=True)
 class ScreenSnapshot:
     image_path: Path | None
@@ -34,8 +51,7 @@ class UIAutomator:
         self.ocr_reader = ocr_reader
 
     def screenshot(self, path: Path | None = None) -> ScreenSnapshot:
-        pyautogui = _pyautogui()
-        image = pyautogui.screenshot()
+        image = _capture_screen()
         if path is not None:
             image.save(path)
         hits = self.ocr_reader.read_image(image)
