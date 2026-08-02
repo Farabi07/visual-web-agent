@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visual-web-agent"
+version = "0.1.0"
+description = "Visual browser automation for Bookshop.org using screenshots, OCR, and GUI input"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "ALXICORN assessment starter"}
+]
+dependencies = [
+  "easyocr>=1.7.1",
+  "numpy>=1.26",
+  "opencv-python>=4.10",
+  "Pillow>=10.0",
+  "pyautogui>=0.9.54",
+  "rapidfuzz>=3.9",
+]
+
+[project.scripts]
+visual-web-agent = "visual_web_agent.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
