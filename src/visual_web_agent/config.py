@@ -11,7 +11,7 @@ BROWSER_CANDIDATES = {
 }
 
 DEFAULT_BOOKSHOP_URL = "https://bookshop.org/"
-DEFAULT_OUTPUT = Path("outputs/bookshop_ean_upc.json")
+DEFAULT_OUTPUT = Path("output.json")
 DEFAULT_PAGE_WAIT_SECONDS = 2.5
 DEFAULT_SCROLL_STEP = 700
 DEFAULT_SCROLL_LIMIT = 8

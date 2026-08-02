@@ -20,7 +20,7 @@ The project opens Bookshop.org in a local browser, searches for the requested bo
 - `src/visual_web_agent/bookshop.py` - Bookshop workflow
 - `src/visual_web_agent/cli.py` - CLI entrypoint
 - `src/visual_web_agent/__main__.py` - `python -m visual_web_agent` support
-- `outputs/bookshop_ean_upc.json` - generated JSON output
+- `output.json` - generated JSON output
 
 ## Setup
 
@@ -38,7 +38,7 @@ If OCR fails to initialize, confirm that the session has access to a visible des
 ## Run
 
 ```bash
-python -m visual_web_agent --output outputs/bookshop_ean_upc.json
+python -m visual_web_agent --output output.json
 ```
 
 Or with explicit browser choice:
@@ -53,14 +53,14 @@ Run the test suite and a sample execution with:
 
 ```bash
 pytest
-python -m visual_web_agent --output outputs/bookshop_ean_upc.json
+python -m visual_web_agent --output output.json
 ```
 
 After the run, verify that:
 
 1. The browser opens in a visible desktop window.
 2. The script searches for both target books.
-3. `outputs/bookshop_ean_upc.json` is created.
+3. `output.json` is created.
 4. The JSON contains two book records with `ean_upc` values.
 
 For reviewers, the same commands work in any normal desktop session with a local browser installed.

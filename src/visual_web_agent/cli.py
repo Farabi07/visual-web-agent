@@ -9,14 +9,14 @@ from .models import BookSpec
 
 DEFAULT_BOOKS = [
     BookSpec(title="World Travel: An Irreverent Guide", authors=("Anthony Bourdain", "Laurie Woolever")),
-    BookSpec(title="The Turn of the Screw", authors=("Mark Z. Danielewski",)),
+    BookSpec(title="The Silk Roads - A New History of the World", authors=("Peter Frankopan",)),
 ]
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Extract Bookshop.org EAN/UPC values using visual automation.")
     parser.add_argument("--browser", default="chrome", choices=["chrome", "edge", "firefox"], help="Local browser to launch")
-    parser.add_argument("--output", default="outputs/bookshop_ean_upc.json", help="Path to the JSON output file")
+    parser.add_argument("--output", default="output.json", help="Path to the JSON output file")
     parser.add_argument("--books-file", help="Optional JSON file containing a custom list of books")
     return parser
 
@@ -36,15 +36,20 @@ def write_output(output_path: Path, records) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "books": [
-            {
-                "title": record.title,
-                "authors": list(record.authors),
-                "ean_upc": record.ean_upc,
-            }
+            _format_book_record(record)
             for record in records
         ]
     }
     output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _format_book_record(record: BookSpec):
+    book = {"title": record.title, "ean_upc": record.ean_upc}
+    if len(record.authors) == 1:
+        book["author"] = record.authors[0]
+    else:
+        book["authors"] = list(record.authors)
+    return book
 
 
 def main() -> int:

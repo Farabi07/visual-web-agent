@@ -1,0 +1,17 @@
+{
+  "books": [
+    {
+      "title": "World Travel: An Irreverent Guide",
+      "authors": [
+        "Anthony Bourdain",
+        "Laurie Woolever"
+      ],
+      "ean_upc": "9780062802798"
+    },
+    {
+      "title": "The Silk Roads - A New History of the World",
+      "author": "Peter Frankopan",
+      "ean_upc": "9781101928097"
+    }
+  ]
+}
