@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +14,7 @@ from .ocr import OCRHit, OCRReader
 def _pyautogui():
     try:
         import pyautogui
-    except Exception as exc:  # pragma: no cover - depends on local GUI availability
+    except Exception as exc: 
         raise RuntimeError(
             "pyautogui could not be initialized. Run this project from a visible desktop session with a local display."
         ) from exc
@@ -25,7 +27,7 @@ def _pyautogui():
 def _capture_screen() -> Image.Image:
     try:
         import mss
-    except ImportError as exc:  # pragma: no cover - runtime dependency guard
+    except ImportError as exc:
         raise RuntimeError("mss is required for screenshots. Install project dependencies first.") from exc
 
     try:
@@ -33,7 +35,7 @@ def _capture_screen() -> Image.Image:
             monitor = capture.monitors[0]
             pixels = capture.grab(monitor)
             return Image.frombytes("RGB", pixels.size, pixels.rgb)
-    except Exception as exc:  # pragma: no cover - depends on local display/session
+    except Exception as exc:
         raise RuntimeError(
             "Unable to capture the screen. Run this project from a visible desktop session with a local display."
         ) from exc
@@ -50,6 +52,18 @@ class UIAutomator:
     def __init__(self, ocr_reader: OCRReader) -> None:
         self.ocr_reader = ocr_reader
 
+    def focus_browser(self) -> None:
+        pyautogui = _pyautogui()
+        try:
+            subprocess.run(["xdotool", "search", "--onlyvisible", "--class", "chrome", "windowactivate"], check=False)
+            subprocess.run(["xdotool", "search", "--onlyvisible", "--class", "firefox", "windowactivate"], check=False)
+        except Exception:
+            pass
+
+        screen_width, screen_height = pyautogui.size()
+        pyautogui.click(screen_width // 2, screen_height // 2)
+        time.sleep(0.3)
+
     def screenshot(self, path: Path | None = None) -> ScreenSnapshot:
         image = _capture_screen()
         if path is not None:
@@ -59,6 +73,10 @@ class UIAutomator:
 
     def wait(self, seconds: float) -> None:
         time.sleep(seconds)
+
+    def click(self, x: int, y: int) -> None:
+        pyautogui = _pyautogui()
+        pyautogui.click(x, y)
 
     def click_center(self, hit: OCRHit) -> None:
         pyautogui = _pyautogui()

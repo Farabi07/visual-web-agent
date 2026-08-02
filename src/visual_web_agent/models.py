@@ -10,8 +10,6 @@ class BookSpec:
 
     @property
     def search_text(self) -> str:
-        if self.authors:
-            return f"{self.title} {' '.join(self.authors)}"
         return self.title
 
 

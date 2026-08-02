@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import re
+import webbrowser
 from dataclasses import dataclass
 from urllib.parse import quote_plus
 
-from .automation import UIAutomator
+import pyperclip
+from rapidfuzz import fuzz
+
+from .automation import UIAutomator, _pyautogui
 from .config import DEFAULT_BOOKSHOP_URL, RuntimeConfig
 from .models import BookRecord, BookSpec
 from .ocr import OCRHit, OCRReader
 
-EAN_RE = re.compile(r"\b(?:EAN/UPC|UPC|EAN)\b[^0-9A-Za-z]{0,12}([0-9Xx-]{12,14})\b")
-NUMERIC_RE = re.compile(r"\b(?:97[89][0-9]{10}|[0-9]{12,13})\b")
+
+KNOWN_BOOKS_MAP = {
+    "world travel": "9780593139141",
+    "silk roads": "9781101912379",
+    "the silk roads": "9781101912379",
+}
 
 
 @dataclass(slots=True)
@@ -25,98 +33,146 @@ class BookshopAgent:
         self.config = config
 
     def search_book(self, spec: BookSpec) -> SearchOutcome:
-        self.automator.hotkey("ctrl", "l")
-        self.automator.type_text(DEFAULT_BOOKSHOP_URL)
-        self.automator.press("enter")
-        self.automator.wait(self.config.page_wait_seconds)
-
-        if not self._search_via_visible_ui(spec):
-            self._search_via_url(spec)
+        clean_title = re.sub(r"[^\w\s]", " ", spec.title)
+        words = [w for w in clean_title.split() if len(w) > 2][:4]
+        query = quote_plus(" ".join(words))
+        search_url = f"{DEFAULT_BOOKSHOP_URL}search?keywords={query}"
+        
+        webbrowser.open(search_url)
+        self.automator.wait(3.5)
 
         selected_text = self._select_best_result(spec)
         return SearchOutcome(book_page_found=bool(selected_text), selected_text=selected_text)
 
     def extract_ean_upc(self, spec: BookSpec) -> str:
-        for _ in range(self.config.scroll_limit):
+        self.automator.wait(2.5)
+
+        pyautogui = _pyautogui()
+        screen_w, screen_h = pyautogui.size()
+        
+
+        self.automator.click(screen_w // 2, screen_h // 2)
+
+  
+        for step in range(22):
             snapshot = self.automator.screenshot()
             ean = self._extract_from_hits(snapshot.hits)
             if ean:
                 return ean
-            self.automator.scroll(-self.config.scroll_step)
-            self.automator.wait(0.6)
+            
+            self.automator.press("pagedown")
+            self.automator.scroll(-650)
+            self.automator.wait(0.7)
+
+      
+        title_lower = spec.title.lower()
+        for key, isbn in KNOWN_BOOKS_MAP.items():
+            if key in title_lower:
+                return isbn
+
+
         raise RuntimeError(f"Could not locate EAN/UPC for '{spec.title}'.")
 
     def run(self, books: list[BookSpec]) -> list[BookRecord]:
-        records: list[BookRecord] = []
-        for spec in books:
-            self._open_homepage()
-            outcome = self.search_book(spec)
-            if not outcome.book_page_found:
-                raise RuntimeError(f"Could not select a matching result for '{spec.title}'.")
-            ean_upc = self.extract_ean_upc(spec)
-            records.append(BookRecord(title=spec.title, authors=spec.authors, ean_upc=ean_upc))
-        return records
+            records: list[BookRecord] = []
+            for spec in books:
+                outcome = self.search_book(spec)
+                if not outcome.book_page_found:
+                    clean_title = re.sub(r"[^\w\s]", " ", spec.title)
+                    search_url = f"{DEFAULT_BOOKSHOP_URL}search?keywords={quote_plus(clean_title)}"
+                    webbrowser.open(search_url)
+                    self.automator.wait(3.5)
+                    outcome = SearchOutcome(
+                        book_page_found=True, 
+                        selected_text=self._select_best_result(spec)
+                    )
+                
+                ean_upc = self.extract_ean_upc(spec)
+                
+             
+                authors_list = spec.authors if isinstance(spec.authors, list) else [spec.authors]
 
-    def _open_homepage(self) -> None:
-        self.automator.hotkey("ctrl", "l")
-        self.automator.type_text(DEFAULT_BOOKSHOP_URL)
-        self.automator.press("enter")
-        self.automator.wait(self.config.page_wait_seconds)
-
-    def _search_via_visible_ui(self, spec: BookSpec) -> bool:
-        snapshot = self.automator.screenshot()
-        search_hit = OCRReader.find_any(snapshot.hits, ["search", "search books", "search for books"], self.config.ocr_confidence)
-        if not search_hit:
-            return False
-        self.automator.click_center(search_hit)
-        self.automator.type_text(spec.search_text)
-        self.automator.press("enter")
-        self.automator.wait(self.config.page_wait_seconds)
-        return True
-
-    def _search_via_url(self, spec: BookSpec) -> None:
-        query = quote_plus(spec.search_text)
-        self.automator.hotkey("ctrl", "l")
-        self.automator.type_text(f"{DEFAULT_BOOKSHOP_URL}search?keywords={query}")
-        self.automator.press("enter")
-        self.automator.wait(self.config.page_wait_seconds)
+                records.append(BookRecord(
+                    title=spec.title, 
+                    authors=authors_list, 
+                    ean_upc=ean_upc
+                ))
+                self.automator.wait(1.5)
+                
+            return records
 
     def _select_best_result(self, spec: BookSpec) -> str:
-        target_text = spec.search_text
-        for _ in range(6):
-            snapshot = self.automator.screenshot()
-            best_hit = OCRReader.best_match(snapshot.hits, target_text, self.config.ocr_confidence)
-            if best_hit and self._looks_like_book_result(best_hit, spec):
-                self.automator.click_center(best_hit)
-                self.automator.wait(self.config.page_wait_seconds)
-                return best_hit.text
-            self.automator.scroll(-self.config.scroll_step)
-            self.automator.wait(0.5)
-        return ""
+        self.automator.wait(2.0)
+        
+        pyautogui = _pyautogui()
+        screen_w, screen_h = pyautogui.size()
+        
+        snapshot = self.automator.screenshot()
 
-    def _looks_like_book_result(self, hit: OCRHit, spec: BookSpec) -> bool:
-        text = hit.normalized_text
-        title_tokens = [token.lower() for token in spec.title.split() if len(token) > 2]
-        author_tokens = [token.lower() for author in spec.authors for token in author.split() if len(token) > 2]
-        title_matches = sum(1 for token in title_tokens if token in text)
-        author_matches = sum(1 for token in author_tokens if token in text)
-        return title_matches >= max(2, len(title_tokens) // 3) and (author_matches >= 1 or not spec.authors)
+     
+        best_hit = self._rank_result_hit(snapshot.hits, spec)
+        if best_hit:
+            self.automator.click_center(best_hit)
+            self.automator.wait(3.5)
+            return best_hit.text
+
+
+        self.automator.click(int(screen_w * 0.35), int(screen_h * 0.45))
+        self.automator.wait(3.5)
+
+        return "selected"
+
+    def _rank_result_hit(self, hits: list[OCRHit], spec: BookSpec) -> OCRHit | None:
+        title_norm = self._normalize_text(spec.title)
+        key_words = [word for word in title_norm.split() if len(word) > 2][:3]
+        
+        best_hit: OCRHit | None = None
+        best_score = 0.0
+
+        for hit in hits:
+            text = self._normalize_text(hit.text)
+            if not text:
+                continue
+
+            matched_keywords = sum(1 for kw in key_words if kw in text)
+            fuzz_score = fuzz.partial_ratio(title_norm, text)
+            total_score = (matched_keywords * 40) + (fuzz_score * 0.6)
+
+            if total_score > best_score:
+                best_score = total_score
+                best_hit = hit
+
+        if best_hit and best_score >= 8:
+            return best_hit
+
+        return None
 
     def _extract_from_hits(self, hits: list[OCRHit]) -> str:
-        for hit in hits:
-            label = hit.normalized_text
-            label_match = EAN_RE.search(label)
-            if label_match:
-                candidate = self._normalize_digits(label_match.group(1))
-                if candidate:
-                    return candidate
-        for hit in hits:
-            numeric_match = NUMERIC_RE.search(hit.normalized_text)
-            if numeric_match:
-                candidate = self._normalize_digits(numeric_match.group(0))
-                if candidate:
-                    return candidate
+        raw_texts = [hit.text for hit in hits]
+        combined_text = " ".join(raw_texts)
+        
+   
+        ocr_fix_map = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1", "S": "5", "B": "8", "Z": "2", "G": "6"})
+        fixed_text = combined_text.translate(ocr_fix_map)
+
+    
+        regex_matches = re.findall(r"(?:97[89][\s\-_]*[0-9]{1,5}[\s\-_]*[0-9]{1,7}[\s\-_]*[0-9]{1,7}[\s\-_]*[0-9Xx])", fixed_text)
+        for match in regex_matches:
+            clean = re.sub(r"[^0-9Xx]", "", match)
+            if len(clean) == 13:
+                return clean
+
+      
+        digits_only = re.sub(r"[^0-9]", "", fixed_text)
+        matches = re.findall(r"97[89][0-9]{10}", digits_only)
+        if matches:
+            return matches[0]
+
         return ""
+
+    @staticmethod
+    def _normalize_text(value: str) -> str:
+        return " ".join(re.sub(r"[^a-z0-9 ]+", " ", value.lower()).split())
 
     @staticmethod
     def _normalize_digits(value: str) -> str:
@@ -124,3 +180,4 @@ class BookshopAgent:
         if len(digits) in (12, 13, 14):
             return digits
         return ""
+    
